@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FitPulse AI - Live Camera Rep Counter & Calorie Tracker</title>
+  <meta name="description" content="AI-powered real-time workout assistant with live camera repetition counting, posture form correction, and calorie burning tracking.">
+  <link rel="stylesheet" href="./src/style.css">
+
+  <!-- MediaPipe Pose and Camera Utils via high-speed CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.4.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+  <!-- Canvas Confetti for Milestone Celebrations -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-logo-icon">⚡</div>
+      <div>
+        <h1 class="brand-title">FITPULSE AI</h1>
+      </div>
+      <span class="brand-tag">VISION 2.0</span>
+    </div>
+
+    <div class="header-actions">
+      <!-- Streak Badge -->
+      <div class="streak-pill" id="header-streak-badge" title="Daily workout streak">
+        <span>🔥</span>
+        <span id="header-streak-count">0 Day Streak</span>
+      </div>
+
+      <!-- Audio Coach Toggle -->
+      <button class="header-btn active" id="btn-toggle-sound" title="Toggle Voice Coach & Audio">
+        <span id="sound-icon">🔊</span>
+        <span id="sound-label">Audio ON</span>
+      </button>
+
+      <!-- History & Stats Modal Trigger -->
+      <button class="header-btn" id="btn-open-history" title="View Workout History & Analytics">
+        <span>📊</span>
+        <span>Progress & Stats</span>
+      </button>
+
+      <!-- Profile & Settings Modal Trigger -->
+      <button class="header-btn" id="btn-open-profile" title="Configure Profile & Calorie Settings">
+        <span>⚙️</span>
+        <span>Settings</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Grid Workspace -->
+  <main class="app-container">
+    
+    <!-- Left Stage: Live Camera HUD & Controls -->
+    <section class="stage-panel">
+      
+      <!-- Video / Canvas Viewport -->
+      <div class="viewport-container" id="viewport-box">
+        <!-- Live mirrored video element -->
+        <video id="webcam-video" playsinline autoplay muted></video>
+        
+        <!-- Live Mirror & Skeleton Canvas -->
+        <canvas id="pose-canvas" width="1280" height="720"></canvas>
+
+        <!-- Live HUD Overlay -->
+        <div class="hud-layer" id="hud-overlay">
+          
+          <!-- Top Row: Status badge & Form guidance -->
+          <div class="hud-top-bar">
+            <div class="hud-status-badge">
+              <span class="status-dot" id="status-dot"></span>
+              <span id="hud-status-text">AI Pose Tracker Ready</span>
+            </div>
+
+            <!-- Dynamic Form Feedback Banner -->
+            <div class="hud-feedback-banner" id="hud-feedback-banner">
+              <span class="feedback-icon" id="feedback-icon">💡</span>
+              <span class="feedback-text" id="feedback-text">Step in front of camera to begin</span>
+            </div>
+          </div>
+
+          <!-- Bottom Row: Big Reps Counter & Calories Burned -->
+          <div>
+            <div class="hud-metrics-row">
+              <!-- Reps Counter -->
+              <div class="hud-metric-card" id="rep-card">
+                <span class="metric-label">
+                  <span>⚡</span>
+                  <span id="hud-metric-title">REPETITIONS</span>
+                </span>
+                <div class="metric-value-wrapper">
+                  <span class="metric-num" id="hud-rep-counter">0</span>
+                  <span class="metric-unit" id="hud-goal-tag">/ Free</span>
+                </div>
+              </div>
+
+              <!-- Calories Burned -->
+              <div class="hud-metric-card">
+                <span class="metric-label">
+                  <span>🔥</span>
+                  <span>CALORIES BURNED</span>
+                </span>
+                <div class="metric-value-wrapper">
+                  <span class="metric-num" id="hud-calorie-counter">0.0</span>
+                  <span class="metric-unit">kcal</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Movement Flexion Progress Bar -->
+            <div class="hud-progress-wrapper">
+              <div class="progress-header">
+                <span>MOVEMENT DEPTH / FLEXION</span>
+                <span id="hud-progress-pct">0%</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" id="hud-progress-bar"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Pre-workout Idle Splash Screen -->
+        <div class="viewport-idle-screen" id="idle-screen">
+          <div class="idle-icon-ring">🏋️</div>
+          <h2 class="idle-title">Start Your AI Workout</h2>
+          <p class="idle-desc">
+            Turn on your live camera for automated rep counting, real-time posture checks, and calorie burn tracking. Or try the instant simulation demo!
+          </p>
+          <div class="start-action-row">
+            <button class="btn-primary" id="btn-start-camera">
+              <span>📷</span>
+              <span>Start Live Camera</span>
+            </button>
+            <button class="btn-secondary" id="btn-start-demo">
+              <span>🤖</span>
+              <span>Try Simulation Demo</span>
+            </button>
+          </div>
+          <div style="margin-top: 14px;">
+            <button type="button" class="header-btn" id="btn-camera-help" style="font-size: 12px; padding: 6px 14px; margin: 0 auto; border-color: rgba(255,255,255,0.18);">
+              <span>💡</span>
+              <span>Camera feed black? Click for laptop fix guide</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Action Control Bar -->
+      <div class="stage-control-bar">
+        <!-- Session Timer -->
+        <div class="session-timer-badge">
+          <span>⏱️</span>
+          <span id="session-timer-display">00:00</span>
+        </div>
+
+        <!-- Controls Group -->
+        <div class="control-btn-group">
+          <!-- Flip Camera (Front / Back) -->
+          <button class="action-btn" id="btn-switch-camera" title="Switch between front and back camera">
+            <span>🔄</span>
+            <span>Flip Camera</span>
+          </button>
+
+          <!-- Upload Test Video -->
+          <label class="action-btn" title="Upload a workout video file to test" style="cursor: pointer;">
+            <span>📁</span>
+            <span>Upload Video</span>
+            <input type="file" id="video-file-input" accept="video/*" style="display: none;">
+          </label>
+
+          <!-- Reset / Finish Workout -->
+          <button class="action-btn stop" id="btn-finish-workout">
+            <span>⏹️</span>
+            <span>Finish & Save Workout</span>
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Right Sidebar: Exercise Selection, Goals, & Daily Summary -->
+    <aside class="sidebar-panel">
+
+      <!-- Exercise Selector Card -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🎯</span>
+            <span>Select Freehand Exercise</span>
+          </div>
+          <button class="header-btn" id="btn-add-exercise-modal" style="padding: 4px 10px; font-size: 11px;">
+            <span>+ Add Custom</span>
+          </button>
+        </div>
+
+        <div class="exercise-scroll-list" id="exercise-list-container">
+          <!-- Populated dynamically via exercises.js -->
+        </div>
+
+        <!-- Target Rep Goal Selector -->
+        <div style="margin-top: 16px;">
+          <div class="panel-title" style="font-size: 12px; margin-bottom: 6px;">
+            <span>🏁</span>
+            <span>Set Target Goal</span>
+          </div>
+          <div class="goal-selector-row">
+            <div class="goal-chip active" data-goal="0">Free</div>
+            <div class="goal-chip" data-goal="15">15 Reps</div>
+            <div class="goal-chip" data-goal="30">30 Reps</div>
+            <div class="goal-chip" data-goal="50">50 Reps</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Exercise Guide Card -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>📋</span>
+            <span id="guide-exercise-title">Exercise Guide</span>
+          </div>
+          <span class="brand-tag" id="guide-category-tag">LOWER BODY</span>
+        </div>
+
+        <div class="guide-content">
+          <p id="guide-instructions-text">
+            Stand sideways or at 45° to the camera. Lower hips until thighs are parallel to the ground.
+          </p>
+          <ul class="guide-tip-list" id="guide-tips-list">
+            <li>Keep back straight and chest upright</li>
+            <li>Lower knee angle to 90 degrees or below</li>
+            <li>Push through your heels on the way up</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Today's Progress Card -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>📈</span>
+            <span>Today's Summary</span>
+          </div>
+          <span style="font-size: 12px; font-weight: 600; color: var(--neon-green);" id="today-goal-pct">0% of Goal</span>
+        </div>
+
+        <div class="today-stats-grid">
+          <div class="stat-box">
+            <div class="stat-box-title">TODAY REPS</div>
+            <div class="stat-box-val" id="today-reps-val">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-title">TODAY CALORIES</div>
+            <div class="stat-box-val" id="today-calories-val">0 kcal</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-title">ACTIVE TIME</div>
+            <div class="stat-box-val" id="today-time-val">0 min</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-title">SESSIONS</div>
+            <div class="stat-box-val" id="today-sessions-val">0</div>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- Modals -->
+
+  <!-- Progress & Analytics Modal -->
+  <div class="modal-overlay" id="modal-history">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <span>📊</span>
+          <span>Workout History & Analytics</span>
+        </h3>
+        <button class="modal-close-btn" data-close="modal-history">✕</button>
+      </div>
+
+      <div class="modal-tabs">
+        <button class="tab-btn active" data-tab="tab-charts">Activity Charts</button>
+        <button class="tab-btn" data-tab="tab-logs">Session Logs</button>
+        <button class="tab-btn" data-tab="tab-badges">Achievements</button>
+      </div>
+
+      <!-- Tab 1: Charts -->
+      <div class="tab-content" id="tab-charts">
+        <div class="charts-container">
+          <div class="chart-card">
+            <div class="chart-title">
+              <span>WEEKLY CALORIE BURN (LAST 7 DAYS)</span>
+              <span style="color: var(--neon-green);" id="chart-week-total">0 kcal</span>
+            </div>
+            <canvas id="chart-weekly-canvas" class="chart-canvas"></canvas>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title">
+              <span>EXERCISE REPS DISTRIBUTION</span>
+            </div>
+            <canvas id="chart-distribution-canvas" class="chart-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Logs Table -->
+      <div class="tab-content" id="tab-logs" style="display: none;">
+        <div class="history-table-container">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Exercise</th>
+                <th>Reps / Time</th>
+                <th>Calories</th>
+                <th>Duration</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top: 18px; display: flex; gap: 10px; justify-content: flex-end;">
+          <button class="btn-secondary" id="btn-export-data" style="padding: 8px 16px; font-size: 13px;">
+            <span>📥</span> Export JSON
+          </button>
+          <button class="btn-secondary" id="btn-clear-history" style="padding: 8px 16px; font-size: 13px; color: var(--neon-pink);">
+            <span>🗑️</span> Clear Logs
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab 3: Badges -->
+      <div class="tab-content" id="tab-badges" style="display: none;">
+        <div class="achievements-grid" id="achievements-container">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Settings & Profile Modal -->
+  <div class="modal-overlay" id="modal-profile">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <span>⚙️</span>
+          <span>Profile & Calorie Settings</span>
+        </h3>
+        <button class="modal-close-btn" data-close="modal-profile">✕</button>
+      </div>
+
+      <form id="profile-form">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-group">
+            <label class="form-label">Body Weight (kg)</label>
+            <input type="number" id="input-weight" class="form-input" min="30" max="250" value="70" required>
+            <span style="font-size: 11px; color: var(--text-subtle);">Used for accurate MET calorie calculation</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Height (cm)</label>
+            <input type="number" id="input-height" class="form-input" min="100" max="250" value="175">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-group">
+            <label class="form-label">Daily Rep Target</label>
+            <input type="number" id="input-daily-reps" class="form-input" min="10" max="1000" value="50">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Daily Calorie Target (kcal)</label>
+            <input type="number" id="input-daily-calories" class="form-input" min="20" max="3000" value="150">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Voice Coach Language</label>
+          <select id="select-voice-lang" class="form-select">
+            <option value="en">English (Brisk Coach)</option>
+            <option value="hi">Hinglish / Hindi Friendly (शाबाश / बढ़िया)</option>
+          </select>
+        </div>
+
+        <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+          <button type="button" class="btn-secondary" data-close="modal-profile">Cancel</button>
+          <button type="submit" class="btn-primary">Save Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Custom Exercise Modal -->
+  <div class="modal-overlay" id="modal-custom-exercise">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <span>⚡</span>
+          <span>Add Custom Exercise</span>
+        </h3>
+        <button class="modal-close-btn" data-close="modal-custom-exercise">✕</button>
+      </div>
+
+      <form id="custom-exercise-form">
+        <div class="form-group">
+          <label class="form-label">Exercise Name</label>
+          <input type="text" id="custom-name" class="form-input" placeholder="e.g. Deep Knee Bends, Tricep Dips" required>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-group">
+            <label class="form-label">Body Region</label>
+            <select id="custom-category" class="form-select">
+              <option value="lower">Lower Body (Legs / Glutes)</option>
+              <option value="upper">Upper Body (Chest / Arms)</option>
+              <option value="core">Core / Abs</option>
+              <option value="cardio">Cardio / Full Body</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tracked Joint</label>
+            <select id="custom-joint" class="form-select">
+              <option value="knee">Knee Flexion (Squat/Lunge style)</option>
+              <option value="elbow">Elbow Flexion (Pushup/Dip style)</option>
+              <option value="hip">Hip / Arm Elevation</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-group">
+            <label class="form-label">Rep Trigger Angle (Degrees)</label>
+            <input type="number" id="custom-target-angle" class="form-input" value="90" min="20" max="170">
+            <span style="font-size: 11px; color: var(--text-subtle);">Angle at deepest point of repetition</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Calorie Burn (MET)</label>
+            <input type="number" id="custom-met" class="form-input" value="6.0" step="0.5" min="2" max="15">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Instructions / Cues</label>
+          <input type="text" id="custom-instructions" class="form-input" placeholder="e.g. Lower body until knee reaches 90 degrees">
+        </div>
+
+        <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+          <button type="button" class="btn-secondary" data-close="modal-custom-exercise">Cancel</button>
+          <button type="submit" class="btn-primary">Create Exercise</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Camera Troubleshooting Guide Modal -->
+  <div class="modal-overlay" id="modal-camera-troubleshoot">
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <span>📷</span>
+          <span>Laptop Camera Black Screen Fix</span>
+        </h3>
+        <button class="modal-close-btn" data-close="modal-camera-troubleshoot">✕</button>
+      </div>
+
+      <div style="font-size: 14px; line-height: 1.6; color: #E5E7EB;">
+        <p style="margin-bottom: 14px; color: var(--neon-cyan); font-weight: 600;">
+          If permissions are granted but the camera video is still black or dark, check these 4 common laptop hardware & system causes:
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 14px;">
+            <h4 style="color: var(--neon-green); font-size: 14px; margin-bottom: 4px;">1. 🔒 Physical Privacy Slider (Shutter)</h4>
+            <p style="font-size: 13px; color: var(--text-muted);">
+              Most modern laptops (Lenovo ThinkPad/IdeaPad, HP, Dell, Asus, Acer) have a small sliding mechanical switch right on top of the webcam lens. Slide it left or right to uncover the lens.
+            </p>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 14px;">
+            <h4 style="color: var(--neon-green); font-size: 14px; margin-bottom: 4px;">2. ⌨️ Keyboard Camera Toggle Key</h4>
+            <p style="font-size: 13px; color: var(--text-muted);">
+              Many laptops have a physical function key that disables the camera sensor. Try pressing <strong>Fn + F8</strong>, <strong>Fn + F10</strong>, or <strong>Fn + F6</strong> (look for a key with a camera icon crossed out).
+            </p>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 14px;">
+            <h4 style="color: var(--neon-green); font-size: 14px; margin-bottom: 4px;">3. ⚙️ Windows Privacy Settings</h4>
+            <p style="font-size: 13px; color: var(--text-muted);">
+              Open Windows <strong>Settings → Privacy & Security → Camera</strong>. Ensure <em>"Camera access"</em> is <strong>ON</strong> and <em>"Let desktop apps / browser access your camera"</em> is <strong>ON</strong>.
+            </p>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 14px;">
+            <h4 style="color: var(--neon-green); font-size: 14px; margin-bottom: 4px;">4. 🔴 Another App Locking the Camera</h4>
+            <p style="font-size: 13px; color: var(--text-muted);">
+              If Zoom, Microsoft Teams, Skype, or Windows Camera App is open in the background, close them so your browser can access the camera stream.
+            </p>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+          <button type="button" class="btn-primary" data-close="modal-camera-troubleshoot" style="padding: 10px 24px; font-size: 13px;">
+            Got It!
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Main Application Controller -->
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
