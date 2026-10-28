@@ -1,0 +1,17 @@
+{
+  "name": "workout-mania",
+  "version": "1.0.0",
+  "description": "AI-Powered Real-Time Computer Vision Workout Rep Counter & Calorie Tracker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "vite:dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}
